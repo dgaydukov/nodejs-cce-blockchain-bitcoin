@@ -1,0 +1,25 @@
+{
+  "name": "nodejs-cce-blockchain-bitcoin--bcheck",
+  "script": "dist/deamons/balanceCheck.js",
+  "autorestart": true,
+  "watch": [ "dist" ],
+  "ignore_watch": [ "src", "node_modules" ],
+  "env": {
+    "DEBUG": "blockchain, db, kafka, logic, bcheck",
+    "DEBUG_COLORS": true,
+    "DEBUG_DEPTH": 6,
+    "ENV": "dev",
+    "PORT": 3342,
+    "MONGODB_CONNECTION": "mongodb://127.0.0.1:27017/bitcoinproxy",
+    "KAFKA_CONNECTION": "127.0.0.1:9092",
+    "KAFKA_TOPIC_LISTEN": "bitcoinProxyRequest",
+    "KAFKA_TOPIC_SEND": "bitcoinProxyResponse",
+    "BITCOIN_NODE_HOST": "127.0.0.1",
+    "BITCOIN_NODE_PORT": 8332,
+    "BITCOIN_NODE_RPC_USERNAME": "devnode",
+    "BITCOIN_NODE_RPC_PASSWORD": "devnode",
+    "BITCOIN_ZERO_MQ_PORT": 28321,
+    "BITCOIN_SYNC_START_BLOCK": 1354277,
+    "RECEIVING_APP_ID": "7132d44d-e8a6-443e-8ddd-a8285fd01112"
+  }
+}
