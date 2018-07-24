@@ -1,7 +1,19 @@
 # Node.js CCE (Crypto Currency Exchange) BlockChain Bitcoin 
 
+## Content
+* [Project Description](#project-description)
+* [Project Structure](#project-structure)
+* [Built With](#built-with)
+* [Installation](#installation)
+* [Auto Testing](#auto-testing)
+* [Kafka](#kafka)
+* [Bitcoind TestNet](#bitcoind-testnet)
+* [Module loading](#module-loading)
+* [Authors](#authors)
+
 ### Project Description
-Bitcoin Proxy is a project to connect bitcoin node (bitcoind) and CCE.
+Bitcoin Proxy is a project to connect bitcoin node (bitcoind) and CCE. Communication works through Kafka. Communication with bitcoin node works
+throught json RPC.
 
 ### Project Structure
 ```
@@ -19,7 +31,7 @@ src - source code folder (typescript)
 
 ### Built With
 
-* [Kafka](https://kafka.apache.org/quickstart) - how to install & run kafka
+* [Kafka](https://kafka.apache.org/quickstart) - how to install & run kafkCoa
 * [KafkaJs](https://www.npmjs.com/package/kafka-node) - node.js module for kafka
 * [MongoDb](https://docs.mongodb.com/manual/tutorial/install-mongodb-on-ubuntu) - how to install & run mongo
 * [Mongoose](https://www.npmjs.com/package/mongoose) - node.js module for mongoDb
@@ -29,6 +41,7 @@ src - source code folder (typescript)
 * [Bitcoin API](https://en.bitcoin.it/wiki/Original_Bitcoin_client/API_calls_list) - bitcoin node (bitcoind) API
 
 ### Installation
+
 ```shell
 #run mongod
 sudo service mongod start
@@ -57,9 +70,8 @@ npm run txcheck
 npm run mptcheck
 ```
 
-### System Testing
 
-##### Auto Testing
+### Auto Testing
 
 You can run auto tests with `npm test`
 For testing purpose we use the following arhitecture
@@ -69,7 +81,9 @@ testing framework + assertion module + test doubles + code coverage
 * [Sinon](http://sinonjs.org) - test doubles
 * [Mocha](https://github.com/gotwarlost/istanbul) - code coverage
 
-##### Kafka
+
+
+### Kafka
 
 For communication with kafka we have a special format that consist of 3 parts, data, metadata, error (if exists)
 ```json
@@ -111,7 +125,7 @@ bin/kafka-console-producer.sh --broker-list localhost:9092 --topic bitcoinProxyR
 
 
 
-##### Bitcoind TestNet
+### Bitcoind TestNet
 
 To check out Bitcoin Proxy you can run the bitcoin node in testmode.
 To get test bitcoins you can use [this](https://testnet.manu.backend.hamburg/faucet) free faucet.
@@ -142,7 +156,7 @@ bitcoin-cli getrawmempool
 
 
 
-## Module loading
+### Module loading
 
 For modules loading inside the project we use [module-alias](https://www.npmjs.com/package/module-alias). For this we write in package.json
 ```json
@@ -166,5 +180,9 @@ typescript functions. For this purpose we write in typescript config ts.config.j
 ```
 
 
+
+## Authors
+
+* **Gaydukov Dmitiry** - *Take a look* - [How to become a Senior Javascript Developer](https://github.com/dgaydukov/how-to-become-a-senior-js-developer)
 
 
