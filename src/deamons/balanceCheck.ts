@@ -51,37 +51,39 @@ const check = async(node, kc)=>{
      *  LatestBlock.collection.drop()
      *  Transaction.collection.drop()
      */
-
-    let lastBlock = await LatestBlock.findOne()
-    if(!lastBlock){
-        lastBlock = new LatestBlock()
-        lastBlock.blockNumber = Number(config.BITCOIN_SYNC_START_BLOCK)
-    }
-    debug(`----------start block #${lastBlock.blockNumber}----------`)
-    lastBlock.blockNumber = Number(lastBlock.blockNumber) + 1
-    const dbAddressList = await Address.find()
-    debug(`number of address to watch: ${dbAddressList.length}`)
-    const addressList = {}
-    dbAddressList.map(item=> {
-        if (item.address) {
-            addressList[item.address.toLowerCase()] = item
+    try{
+        let lastBlock = await LatestBlock.findOne()
+        if(!lastBlock){
+            lastBlock = new LatestBlock()
+            lastBlock.blockNumber = Number(config.BITCOIN_SYNC_START_BLOCK)
         }
-    })
-    const block = await node.getBlockByNumber(lastBlock.blockNumber)
-    const len = block.tx.length
-    debug(`number of tx: ${len}`)
-    for(let i = 0; i < len; i++){
-        const txId = block.tx[i]
-        const tx = await node.getTxById(txId)
-        tx.vout.map(output=>{
-            const addresses = output.scriptPubKey.addresses;
-            if(addresses){
-                const outputAddress = addresses[0].toLowerCase()
-                const amount = parseFloat(output.value)
-                const outputAddressItem = addressList[outputAddress]
-                if(outputAddressItem){
-                    debug(`address found: ${outputAddress}, ${amount}`)
-                    Transaction.findOne({txId: txId}, (err, dbTx)=>{
+        debug(`----------start block #${lastBlock.blockNumber}----------`)
+        lastBlock.blockNumber = Number(lastBlock.blockNumber) + 1
+        const dbAddressList = await Address.find()
+        debug(`number of address to watch: ${dbAddressList.length}`)
+        const addressList = {}
+        dbAddressList.map(item=> {
+            if (item.address) {
+                addressList[item.address.toLowerCase()] = item
+            }
+        })
+        const block = await node.getBlockByNumber(lastBlock.blockNumber)
+        const len = block.tx.length
+        debug(`number of tx: ${len}`)
+        for(let i = 0; i < len; i++){
+            const txId = block.tx[i]
+            const tx = await node.getTxById(txId)
+            const voutLen = tx.vout.length
+            for(let j = 0; j < voutLen; j++){
+                const output = tx.vout[j]
+                const addresses = output.scriptPubKey.addresses;
+                if(addresses){
+                    const outputAddress = addresses[0].toLowerCase()
+                    const amount = Number(output.value)
+                    const outputAddressItem = addressList[outputAddress]
+                    if(outputAddressItem){
+                        debug(`address found: ${outputAddress}, ${amount}`)
+                        let dbTx = await Transaction.findOne({txId: txId})
                         //if transaction doesn't exist create and recalculate balance
                         if(!dbTx){
                             dbTx = new Transaction()
@@ -93,59 +95,53 @@ const check = async(node, kc)=>{
                         dbTx.confirmationNumber = tx.confirmations
                         dbTx.blockNumber = lastBlock.blockNumber
                         dbTx.type = TYPE.INPUT
-                        dbTx.save((err, data)=>{
-                            debug(`tx saved ${txId}, address: ${outputAddress}`)
-                            kc.send(buildMessage(METHOD_NEW_BALANCE, {
-                                    address: outputAddressItem.address,
-                                    amount: amount,
-                                    txId: data.txId,
-                                })
-                            );
-                            //update address table for total address balance
-                            Transaction.find({addressTo: outputAddress}, (err, data)=>{
-                                let balance = 0
-                                data.map(item=>{
-                                    balance += Number(item.amount)
-                                })
-                                outputAddressItem.balance = balance.toFixed(8)
-                                outputAddressItem.save((err, data)=>{
-                                })
-                            })
-                        })
-                    })
-                }
-            }
-        })
-        /**
-         * pure bitcoin feature, we need to go one level deep to to get address from
-         */
-        const vinLen = tx.vin.length
-        const vinCb = (txId, list) => {
-            Transaction.findOne({txId: txId, addressFrom: []}, (err, txItem)=>{
-                if(txItem){
-                    txItem.addressFrom = list
-                    txItem.save((err, savedTx)=>{
-                        debug(`tx updated`, savedTx)
-                        kc.send(buildMessage(METHOD_NEW_TRANSACTION, {
-                                txId: txId,
-                                addressFrom: savedTx.addressFrom,
-                                addressTo: savedTx.addressTo,
-                                amount: savedTx.amount,
-                                confirmationNumber: savedTx.confirmationNumber,
-                                blockNumber: savedTx.blockNumber,
+                        const data = await dbTx.save()
+                        debug(`tx saved ${txId}, address: ${outputAddress}`)
+                        kc.send(
+                            buildMessage(METHOD_NEW_BALANCE, {
+                                address: outputAddressItem.address,
+                                amount: amount,
+                                txId: data.txId,
                             })
                         );
-                    })
-                }
-            })
-        }
-        const vinAddressList = []
-        tx.vin.map((input, i)=>{
-            if(input.txid){
-                node.getTransaction(input.txid, (err, inTx)=>{
-                    if(err){
-                        return
+                        //update address table for total address balance
+                        const dbTxList = await Transaction.find({addressTo: outputAddress})
+                        let balance = 0
+                        dbTxList.map(item=>{
+                            balance += Number(item.amount)
+                        })
+                        outputAddressItem.balance = balance.toFixed(8)
+                        outputAddressItem.save()
                     }
+                }
+            }
+            /**
+             * pure bitcoin feature, we need to go one level deep to to get address from
+             */
+            const vinLen = tx.vin.length
+            const vinCb = async(txId, list) => {
+                const txItem = await Transaction.findOne({txId: txId, addressFrom: []})
+                if(txItem){
+                    txItem.addressFrom = list
+                    const savedTx = await txItem.save()
+                    debug(`tx updated`, savedTx)
+                    kc.send(
+                        buildMessage(METHOD_NEW_TRANSACTION, {
+                            txId: txId,
+                            addressFrom: savedTx.addressFrom,
+                            addressTo: savedTx.addressTo,
+                            amount: savedTx.amount,
+                            confirmationNumber: savedTx.confirmationNumber,
+                            blockNumber: savedTx.blockNumber,
+                        })
+                    )
+                }
+            }
+            const vinAddressList = []
+            for(let k = 0; k < vinLen; k++){
+                const input = tx.vin[k]
+                if(input.txid){
+                    const inTx = await node.getTransaction(input.txid)
                     const inputAddressItem = inTx.vout[tx.vin[i].vout]
                     const addresses = inputAddressItem.scriptPubKey.addresses;
                     if(addresses){
@@ -154,9 +150,12 @@ const check = async(node, kc)=>{
                     if(i == vinLen - 1){
                         vinCb(txId, vinAddressList)
                     }
-                })
+                }
             }
-        })
+        }
+    }
+    catch(ex){
+        debug(`Error: ${ex}`)
     }
 }
 

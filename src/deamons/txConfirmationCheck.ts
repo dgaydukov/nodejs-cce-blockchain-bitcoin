@@ -45,33 +45,38 @@ const run = () => {
 
 
 const check = async(node, kc) => {
-    const dbTxList = await Transaction.find({confirmationNumber: {$lt: MAX_CONFIRMATION_NUMBER}})
-    const len = dbTxList.length
-    debug(`number of tx to watch: ${len}`)
-    for(let i = 0; i < len; i++){
-        const dbTx = dbTxList[i]
-        const tx = await node.getTransaction(dbTx.txId)
-        const confirmationNumber = tx.confirmations
-        if(0 == dbTx.blockNumber){
-            const block = await node.getBlockByHash(tx.blockhash)
-            dbTx.blockNumber = block.height
-            const data = await dbTx.save()
-            kc.send(buildMessage(METHOD_TX_WENT_INTO_BLOCK, {
-                    txId: data.txId,
-                    blockNumber: data.blockNumber,
-                })
-            )
+    try{
+        const dbTxList = await Transaction.find({confirmationNumber: {$lt: MAX_CONFIRMATION_NUMBER}})
+        const len = dbTxList.length
+        debug(`number of tx to watch: ${len}`)
+        for(let i = 0; i < len; i++){
+            const dbTx = dbTxList[i]
+            const tx = await node.getTransaction(dbTx.txId)
+            const confirmationNumber = tx.confirmations
+            if(0 == dbTx.blockNumber){
+                const block = await node.getBlockByHash(tx.blockhash)
+                dbTx.blockNumber = block.height
+                const data = await dbTx.save()
+                kc.send(buildMessage(METHOD_TX_WENT_INTO_BLOCK, {
+                        txId: data.txId,
+                        blockNumber: data.blockNumber,
+                    })
+                )
+            }
+            else if(confirmationNumber > dbTx.confirmationNumber){
+                debug(`txId: ${dbTx.txId}, confirmationNumber: ${confirmationNumber}`)
+                dbTx.confirmationNumber = confirmationNumber
+                const data = await dbTx.save()
+                kc.send(buildMessage(METHOD_NEW_CONFIRMATION, {
+                        txId: data.txId,
+                        confirmationNumber: data.confirmationNumber,
+                    })
+                )
+            }
         }
-        else if(confirmationNumber > dbTx.confirmationNumber){
-            debug(`txId: ${dbTx.txId}, confirmationNumber: ${confirmationNumber}`)
-            dbTx.confirmationNumber = confirmationNumber
-            const data = await dbTx.save()
-            kc.send(buildMessage(METHOD_NEW_CONFIRMATION, {
-                    txId: data.txId,
-                    confirmationNumber: data.confirmationNumber,
-                })
-            )
-        }
+    }
+    catch(ex){
+        debug(`Error: ${ex}`)
     }
 }
 

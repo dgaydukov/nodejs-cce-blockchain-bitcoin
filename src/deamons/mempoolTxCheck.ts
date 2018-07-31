@@ -48,60 +48,66 @@ const check = async(node, kc)=>{
      *  LatestBlock.collection.drop()
      */
 
-    const dbAddressList = await Address.find({})
-    const dbMempollTxList = await MempoolTx.find({})
-    debug(`number of address to watch: ${dbAddressList.length}`)
-    debug(`db mempool tx number: ${dbMempollTxList.length}`)
-    const addressList = {}
-    const txList = {}
-    dbAddressList.map(item=> {
-        if (item.address) {
-            addressList[item.address.toLowerCase()] = item
-        }
-    })
-    dbMempollTxList.map(txItem=>{
-        txList[txItem.txId] = 1
-    })
-    const mempoolTxList = await node.getMempoolTxList()
-    const watchList = []
-    mempoolTxList.map(txId=> {
-        if(!txList[txId]){
-            watchList.push(txId)
-        }
-    })
-    const len = watchList.length
-    debug(`number of tx to check ${len}`)
-    for(let i = 0; i < len; i++){
-        const txId = watchList[i]
-        const tx = await node.getTxById(txId)
-        const newMpTx = new MempoolTx({
-            txId: txId
-        })
-        newMpTx.save()
-        tx.vout.map(output=>{
-            const addresses = output.scriptPubKey.addresses;
-            if(addresses){
-                const outputAddress = addresses[0].toLowerCase()
-                const outputAddressItem = addressList[outputAddress]
-                if(outputAddressItem){
-                    const amount = parseFloat(output.value)
-                    debug(`address found: ${outputAddress}, ${amount}`)
-                    const newTx = new Transaction({
-                        txId: txId,
-                        addressTo: outputAddressItem.address,
-                        amount: output.value,
-                    })
-                    newTx.save()
-                    kc.send(buildMessage(METHOD_NEW_MEMPOOL_TX, {
-                            address: outputAddressItem.address,
-                            amount: amount,
-                            txId: txId,
-                        })
-                    );
-                }
+    try{
+        const dbAddressList = await Address.find({})
+        const dbMempollTxList = await MempoolTx.find({})
+        debug(`number of address to watch: ${dbAddressList.length}`)
+        debug(`db mempool tx number: ${dbMempollTxList.length}`)
+        const addressList = {}
+        const txList = {}
+        dbAddressList.map(item=> {
+            if (item.address) {
+                addressList[item.address.toLowerCase()] = item
             }
         })
+        dbMempollTxList.map(txItem=>{
+            txList[txItem.txId] = 1
+        })
+        const mempoolTxList = await node.getMempoolTxList()
+        const watchList = []
+        mempoolTxList.map(txId=> {
+            if(!txList[txId]){
+                watchList.push(txId)
+            }
+        })
+        const len = watchList.length
+        debug(`number of tx to check ${len}`)
+        for(let i = 0; i < len; i++){
+            const txId = watchList[i]
+            const tx = await node.getTxById(txId)
+            const newMpTx = new MempoolTx({
+                txId: txId
+            })
+            newMpTx.save()
+            tx.vout.map(output=>{
+                const addresses = output.scriptPubKey.addresses;
+                if(addresses){
+                    const outputAddress = addresses[0].toLowerCase()
+                    const outputAddressItem = addressList[outputAddress]
+                    if(outputAddressItem){
+                        const amount = parseFloat(output.value)
+                        debug(`address found: ${outputAddress}, ${amount}`)
+                        const newTx = new Transaction({
+                            txId: txId,
+                            addressTo: outputAddressItem.address,
+                            amount: output.value,
+                        })
+                        newTx.save()
+                        kc.send(buildMessage(METHOD_NEW_MEMPOOL_TX, {
+                                address: outputAddressItem.address,
+                                amount: amount,
+                                txId: txId,
+                            })
+                        );
+                    }
+                }
+            })
+        }
     }
+    catch(ex){
+        debug(`Error: ${ex}`)
+    }
+
 }
 
 
