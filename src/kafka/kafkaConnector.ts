@@ -1,8 +1,6 @@
 
 import kafka = require('kafka-node')
-const sha256 = require("sha256")
-const crypto = require('crypto');
-
+const crypto = require('crypto')
 const debug = require("debug")("kafka")
 import {AddressGenerator} from "@logic/addressGenerator"
 import {TransactionBuilder} from "@logic/transactionBuilder"
@@ -76,7 +74,7 @@ export class KafkaConnector{
                 }
             );
             consumer.on('message', (message: iMessage)=>{
-                const hash = sha256(message.topic+message.value+message.offset)
+                const hash = crypto.createHash('sha256').update(message.topic+message.value+message.offset).digest('hex')
                 if(hashList[hash]){
                     return
                 }
