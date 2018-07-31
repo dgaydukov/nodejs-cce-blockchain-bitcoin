@@ -1,6 +1,8 @@
 
 import kafka = require('kafka-node')
 const sha256 = require("sha256")
+const crypto = require('crypto');
+
 const debug = require("debug")("kafka")
 import {AddressGenerator} from "@logic/addressGenerator"
 import {TransactionBuilder} from "@logic/transactionBuilder"
