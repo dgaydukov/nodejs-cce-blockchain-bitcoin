@@ -14,178 +14,151 @@ import {BitcoinNode} from "@blockchain/bitcoinNode"
 import {default as config} from "@root/config.json"
 import {buildMessage} from "@deamons/helpers"
 
-const RUN_TIME = 10
-const WAIT_TIME = 10
 const METHOD_NEW_BALANCE = "newBalance"
 const METHOD_NEW_TRANSACTION = "newTx"
-const node = new BitcoinNode()
-const kc = new KafkaConnector()
-
-let allowRun = true
 
 
 
-setInterval(()=>{
-    if(allowRun){
-        allowRun = false
-        const finishCb = (n) => {
-            allowRun = true
-            debug(`----------finish block #${n}----------`)
+
+const run = () => {
+    const intervalTime = Number(process.env.RUN_INTERVAL) * 1000
+    const node = new BitcoinNode()
+    const kc = new KafkaConnector()
+    let allowRun = true
+    const inner = ()=>{
+        if(allowRun) {
+            debug("start")
+            allowRun = false
+            check(node, kc)
+                .then(() => {
+                    allowRun = true
+                    debug(`-------------finish-------------`)
+                })
+                .catch((ex) => {
+                    allowRun = true
+                    debug(`Error: ${ex}`)
+                })
         }
-        check(finishCb)
     }
-}, RUN_TIME * 1000)
+    inner();
+    setInterval(inner, intervalTime)
+}
 
 
-const check = (finishCb) => {
+const check = async(node, kc)=>{
     /**
      *  For test purpose you can clear latestblock & transaction
      *  LatestBlock.collection.drop()
      *  Transaction.collection.drop()
      */
-    const finish = (lastBlockNumber, lastBlock = null) => {
-        if(lastBlock){
-            lastBlock.save()
-        }
-        setTimeout(()=>{
-            finishCb(lastBlockNumber)
-        }, WAIT_TIME * 1000)
-    }
-    Address.find({}, (err, data)=>{
-        //get last checked block
-        LatestBlock.findOne({}, (err, lastBlock)=>{
-            let lastBlockNumber;
-            if(!lastBlock){
-                lastBlock = new LatestBlock()
-                lastBlockNumber = config.BITCOIN_SYNC_START_BLOCK
-            }
-            else{
-                lastBlockNumber = lastBlock.blockNumber
-            }
-            lastBlockNumber = Number(lastBlockNumber)
-            lastBlock.blockNumber = lastBlockNumber + 1
-            debug(`----------start block #${lastBlockNumber}----------`)
 
-            const addressList = {}
-            debug(`number of address to watch: ${data.length}`)
-            if(data){
-                data.map(addressItem=>{
-                    const address = addressItem.address
-                    if(address){
-                        addressList[address.toLowerCase()] = addressItem
+    let lastBlock = await LatestBlock.findOne()
+    if(!lastBlock){
+        lastBlock = new LatestBlock()
+        lastBlock.blockNumber = Number(config.BITCOIN_SYNC_START_BLOCK)
+    }
+    debug(`----------start block #${lastBlock.blockNumber}----------`)
+    lastBlock.blockNumber = Number(lastBlock.blockNumber) + 1
+    const dbAddressList = await Address.find()
+    debug(`number of address to watch: ${dbAddressList.length}`)
+    const addressList = {}
+    dbAddressList.map(item=> {
+        if (item.address) {
+            addressList[item.address.toLowerCase()] = item
+        }
+    })
+    const block = await node.getBlockByNumber(lastBlock.blockNumber)
+    const len = block.tx.length
+    debug(`number of tx: ${len}`)
+    for(let i = 0; i < len; i++){
+        const txId = block.tx[i]
+        const tx = await node.getTxById(txId)
+        tx.vout.map(output=>{
+            const addresses = output.scriptPubKey.addresses;
+            if(addresses){
+                const outputAddress = addresses[0].toLowerCase()
+                const amount = parseFloat(output.value)
+                const outputAddressItem = addressList[outputAddress]
+                if(outputAddressItem){
+                    debug(`address found: ${outputAddress}, ${amount}`)
+                    Transaction.findOne({txId: txId}, (err, dbTx)=>{
+                        //if transaction doesn't exist create and recalculate balance
+                        if(!dbTx){
+                            dbTx = new Transaction()
+                            dbTx.txId = txId
+                        }
+                        dbTx.addressFrom = []
+                        dbTx.addressTo = outputAddressItem.address
+                        dbTx.amount = amount
+                        dbTx.confirmationNumber = tx.confirmations
+                        dbTx.blockNumber = lastBlock.blockNumber
+                        dbTx.type = TYPE.INPUT
+                        dbTx.save((err, data)=>{
+                            debug(`tx saved ${txId}, address: ${outputAddress}`)
+                            kc.send(buildMessage(METHOD_NEW_BALANCE, {
+                                    address: outputAddressItem.address,
+                                    amount: amount,
+                                    txId: data.txId,
+                                })
+                            );
+                            //update address table for total address balance
+                            Transaction.find({addressTo: outputAddress}, (err, data)=>{
+                                let balance = 0
+                                data.map(item=>{
+                                    balance += Number(item.amount)
+                                })
+                                outputAddressItem.balance = balance.toFixed(8)
+                                outputAddressItem.save((err, data)=>{
+                                })
+                            })
+                        })
+                    })
+                }
+            }
+        })
+        /**
+         * pure bitcoin feature, we need to go one level deep to to get address from
+         */
+        const vinLen = tx.vin.length
+        const vinCb = (txId, list) => {
+            Transaction.findOne({txId: txId, addressFrom: []}, (err, txItem)=>{
+                if(txItem){
+                    txItem.addressFrom = list
+                    txItem.save((err, savedTx)=>{
+                        debug(`tx updated`, savedTx)
+                        kc.send(buildMessage(METHOD_NEW_TRANSACTION, {
+                                txId: txId,
+                                addressFrom: savedTx.addressFrom,
+                                addressTo: savedTx.addressTo,
+                                amount: savedTx.amount,
+                                confirmationNumber: savedTx.confirmationNumber,
+                                blockNumber: savedTx.blockNumber,
+                            })
+                        );
+                    })
+                }
+            })
+        }
+        const vinAddressList = []
+        tx.vin.map((input, i)=>{
+            if(input.txid){
+                node.getTransaction(input.txid, (err, inTx)=>{
+                    if(err){
+                        return
+                    }
+                    const inputAddressItem = inTx.vout[tx.vin[i].vout]
+                    const addresses = inputAddressItem.scriptPubKey.addresses;
+                    if(addresses){
+                        vinAddressList.push(addresses[0])
+                    }
+                    if(i == vinLen - 1){
+                        vinCb(txId, vinAddressList)
                     }
                 })
             }
-
-            node.getBlockByNumber(lastBlockNumber, (err, block)=>{
-                if(err){
-                    debug(`error: ${err.message}`)
-                    finish(lastBlockNumber)
-                    return
-                }
-                const len = block.tx.length
-                debug(`number of tx: ${len}`)
-                if(len == 0){
-                    finish(lastBlockNumber, lastBlock)
-                }
-                block.tx.map((txId, i)=>{
-                    //execute transaction request every 100 ms
-                    setTimeout(()=>{
-                        node.getTransaction(txId, (err, tx)=>{
-                            if(i == len - 1){
-                                finish(lastBlockNumber, lastBlock)
-                            }
-                            if(err || null == tx){
-                                return;
-                            }
-                            tx.vout.map(output=>{
-                                const addresses = output.scriptPubKey.addresses;
-                                if(addresses){
-                                    const outputAddress = addresses[0].toLowerCase()
-                                    const amount = parseFloat(output.value)
-                                    const outputAddressItem = addressList[outputAddress]
-                                    if(outputAddressItem){
-                                        debug(`address found: ${outputAddress}, ${amount}`)
-                                        Transaction.findOne({txId: txId}, (err, dbTx)=>{
-                                            //if transaction doesn't exist create and recalculate balance
-                                            if(!dbTx){
-                                                dbTx = new Transaction()
-                                                dbTx.txId = txId
-                                            }
-                                            dbTx.addressFrom = []
-                                            dbTx.addressTo = outputAddressItem.address
-                                            dbTx.amount = amount
-                                            dbTx.confirmationNumber = tx.confirmations
-                                            dbTx.blockNumber = lastBlockNumber
-                                            dbTx.type = TYPE.INPUT
-                                            dbTx.save((err, data)=>{
-                                                debug(`tx saved ${txId}, address: ${outputAddress}`)
-                                                kc.send(buildMessage(METHOD_NEW_BALANCE, {
-                                                        address: outputAddressItem.address,
-                                                        amount: amount,
-                                                        txId: data.txId,
-                                                    })
-                                                );
-                                                //update address table for total address balance
-                                                Transaction.find({addressTo: outputAddress}, (err, data)=>{
-                                                    let balance = 0
-                                                    data.map(item=>{
-                                                        balance += Number(item.amount)
-                                                    })
-                                                    outputAddressItem.balance = balance.toFixed(8)
-                                                    outputAddressItem.save((err, data)=>{
-                                                    })
-                                                })
-                                            })
-                                        })
-                                    }
-                                }
-                            })
-                            /**
-                             * pure bitcoin feature, we need to go one level deep to to get address from
-                             */
-                            const vinLen = tx.vin.length
-                            const vinCb = (txId, list) => {
-                                Transaction.findOne({txId: txId, addressFrom: []}, (err, txItem)=>{
-                                    if(txItem){
-                                        txItem.addressFrom = list
-                                        txItem.save((err, savedTx)=>{
-                                            debug(`tx updated`, savedTx)
-                                            kc.send(buildMessage(METHOD_NEW_TRANSACTION, {
-                                                    txId: txId,
-                                                    addressFrom: savedTx.addressFrom,
-                                                    addressTo: savedTx.addressTo,
-                                                    amount: savedTx.amount,
-                                                    confirmationNumber: savedTx.confirmationNumber,
-                                                    blockNumber: savedTx.blockNumber,
-                                                })
-                                            );
-                                        })
-                                    }
-                                })
-                            }
-                            const vinAddressList = []
-                            tx.vin.map((input, i)=>{
-                                if(input.txid){
-                                    node.getTransaction(input.txid, (err, inTx)=>{
-                                        if(err){
-                                            return
-                                        }
-                                        const inputAddressItem = inTx.vout[tx.vin[i].vout]
-                                        const addresses = inputAddressItem.scriptPubKey.addresses;
-                                        if(addresses){
-                                            vinAddressList.push(addresses[0])
-                                        }
-                                        if(i == vinLen - 1){
-                                            vinCb(txId, vinAddressList)
-                                        }
-                                    })
-                                }
-                            })
-                        })
-                    }, i * 100)
-                })
-            })
         })
-    })
+    }
 }
+
+
+run()
