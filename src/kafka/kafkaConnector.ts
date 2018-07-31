@@ -100,32 +100,16 @@ export class KafkaConnector {
 
                     case METHOD_GET_ADDRESS_INFO:
                         const addrInfo = new AddressInfo(inMsg.data.address)
-                        addrInfo.get((err, item) => {
-                            if (err) {
-                                inMsg.error = {
-                                    message: err.toString()
-                                }
-                            }
-                            else {
-                                inMsg.data = Object.assign({}, inMsg.data, item)
-                            }
-                            this.send(outMsg)
-                        })
+                        const addrInfoItem = await addrInfo.get()
+                        outMsg.data = Object.assign({}, inMsg.data, addrInfoItem)
+                        this.send(outMsg)
                         break;
 
                     case METHOD_GET_TRANSACTION_INFO:
                         const txInfo = new TransactionInfo(inMsg.data.txId)
-                        txInfo.get((err, item) => {
-                            if (err) {
-                                outMsg.error = {
-                                    message: err.toString()
-                                }
-                            }
-                            else {
-                                outMsg.data = Object.assign({}, inMsg.data, item)
-                            }
-                            this.send(outMsg)
-                        })
+                        const txInfoItem = await txInfo.get()
+                        outMsg.data = Object.assign({}, inMsg.data, txInfoItem)
+                        this.send(outMsg)
                         break;
 
                     default:
@@ -140,7 +124,9 @@ export class KafkaConnector {
             catch(ex){
                 this.send({
                     originalMessage: message.value,
-                    error: `Error: ${ex}`
+                    error: {
+                        message: ex.toString(),
+                    }
                 })
             }
         })
