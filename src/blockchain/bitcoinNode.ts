@@ -1,5 +1,4 @@
 
-const debug = require("debug")("blockchain")
 import {default as config} from "@root/config.json"
 const Client = require('bitcoin-core');
 const client = new Client({
@@ -11,52 +10,55 @@ const client = new Client({
 });
 
 export class BitcoinNode{
-    constructor(){
-
-    }
 
     getNewAddress(){
         return client.command("getnewaddress")
     }
+
     getBalance(address){
         return client.getBalance(address, 0)
     }
+
     getTotalBalance(){
         return client.getBalance('*', 0)
     }
+
     /**
      * first address of the main account
      */
     getBaseAddress(){
         return client.command('getaccountaddress', '')
     }
+
     /**
      * the list of all your addresses associated with your main account
      */
     getAddressList(){
         return client.command('getaddressesbyaccount', '')
     }
+
     sendTransaction(to, amount){
         return client.command('sendtoaddress', to, amount)
     }
+
     getPrivateKey(address){
         return client.command('dumpprivkey', address)
     }
+
     getTxById(txId){
         return client.command('getrawtransaction', txId, 1)
     }
+
     getBlockByHash(hash){
         return client.command('getblock', hash)
     }
-    getBlockByNumber(number){
-        return new Promise((resolve, reject)=>{
-            client.command('getblockhash', number).then((hash)=>{
-                client.command('getblock', hash).then((block)=>{
-                    resolve(block)
-                })
-            })
-        })
+
+    async getBlockByNumber(number){
+        const hash = await client.command('getblockhash', number)
+        const block = await client.command('getblock', hash)
+        return block
     }
+
     getMempoolTxList(){
         return client.command('getrawmempool')
     }

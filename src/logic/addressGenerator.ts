@@ -3,28 +3,20 @@ import {Address} from "@db/models/address"
 import {BitcoinNode} from "@blockchain/bitcoinNode"
 
 export class AddressGenerator {
-    getAddress(cb){
+    async getAddress(){
         const node = new BitcoinNode()
-        node.getNewAddress((err, newAddress)=>{
-            if(err){
-                cb(err, null)
-            }
-            else{
-                const address = new Address()
-                address.address = newAddress
-                address.save((err, data)=>{
-                    cb(err, data)
-                });
-            }
+        const newAddress = await node.getNewAddress()
+        const address = new Address({
+            address: newAddress
         })
+        return address.save()
     }
-    updateKmId(id, kmId){
-        Address.findOne({_id: id}, (err, item)=>{
-            if(item){
-                item.kmId = kmId
-                item.save((err, data)=>{
-                })
-            }
-        })
+
+    async updateKmId(id, kmId){
+        const item = await Address.findOne({_id: id})
+        if(item){
+            item.kmId = kmId
+            item.save()
+        }
     }
 }

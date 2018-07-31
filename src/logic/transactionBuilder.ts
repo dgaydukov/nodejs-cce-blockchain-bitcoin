@@ -12,23 +12,17 @@ export class TransactionBuilder {
         this.amount = amount;
     }
 
-    run(cb){
+    async run(){
         const node = new BitcoinNode()
-        node.sendTransaction(this.addressTo, this.amount, (err, txId)=>{
-            if(err){
-                cb(err)
-            }
-            else{
-                const tx = new Transaction()
-                tx.txId = txId
-                tx.addressFrom = []
-                tx.addressTo = this.addressTo
-                tx.amount = this.amount
-                tx.type = TYPE.OUTPUT
-                tx.save((err,data)=>{
-                    cb(err, data)
-                })
-            }
+        const txId = await node.sendTransaction(this.addressTo, this.amount)
+        const tx = new Transaction({
+            txId: txId,
+            addressFrom: [],
+            addressTo: this.addressTo,
+            amount: this.amount,
+            type: TYPE.OUTPUT,
         })
+        const txItem = await tx.save()
+        return txItem
     }
 }
