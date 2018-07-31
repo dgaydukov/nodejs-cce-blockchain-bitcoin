@@ -15,83 +15,50 @@ export class BitcoinNode{
 
     }
 
-    getNewAddress(cb){
-        client.command("getnewaddress").then((address)=>{
-            cb(null, address)
-        }).catch(ex=>{
-            cb(ex)
-        });
+    getNewAddress(){
+        return client.command("getnewaddress")
     }
-    getBalance(address, cb){
-        client.getBalance(address, 0).then((balance)=>{
-            cb(balance)
-        });
+    getBalance(address){
+        return client.getBalance(address, 0)
     }
-    getTotalBalance(cb){
-        client.getBalance('*', 0).then((balance)=>{
-            cb(balance)
-        });
+    getTotalBalance(){
+        return client.getBalance('*', 0)
     }
     /**
      * first address of the main account
      */
-    getBaseAddress(cb){
-        client.command('getaccountaddress', '').then((data)=>{
-            cb(data)
-        });
+    getBaseAddress(){
+        return client.command('getaccountaddress', '')
     }
     /**
      * the list of all your addresses associated with your main account
      */
-    getAddressList(cb){
-        client.command('getaddressesbyaccount', '').then((data)=>{
-            cb(data)
-        });
+    getAddressList(){
+        return client.command('getaddressesbyaccount', '')
     }
-    sendTransaction(to, amount, cb){
-        client.command('sendtoaddress', to, amount).then((txId)=>{
-            cb(null, txId)
-        }).catch(ex=>{
-            cb(ex)
-        });
+    sendTransaction(to, amount){
+        return client.command('sendtoaddress', to, amount)
     }
-    getPrivateKey(address, cb){
-        client.command('dumpprivkey', address).then((privkey)=>{
-            cb(privkey)
-        });
+    getPrivateKey(address){
+        return client.command('dumpprivkey', address)
     }
-    getTransaction(txId, cb){
-        client.command('getrawtransaction', txId, 1).then((tx)=>{
-            cb(null, tx)
-        }).catch(ex=>{
-            debug(`getrawtransaction ${txId}, error:${ex.message}`)
-            cb(ex)
-        });
+    getTxById(txId){
+        return client.command('getrawtransaction', txId, 1)
     }
-    getBlockByNumber(number, cb){
-        client.command('getblockhash', number).then((hash)=>{
-            client.command('getblock', hash).then((block)=>{
-                cb(null, block)
-            }).catch(ex=>{
-                cb(ex)
-            });
-        }).catch(ex=>{
-            cb(ex)
-        });
+    getBlockByHash(hash){
+        return client.command('getblock', hash)
     }
-    getBlockByHash(hash, cb){
-        client.command('getblock', hash).then((block)=>{
-            cb(null, block)
-        }).catch(ex=>{
-            cb(ex)
-        });
+    getBlockByNumber(number){
+        return new Promise((resolve, reject)=>{
+            client.command('getblockhash', number).then((hash)=>{
+                client.command('getblock', hash).then((block)=>{
+                    resolve(block)
+                })
+            })
+        })
     }
-    getMempoolTxList(cb){
-        client.command('getrawmempool').then((list)=>{
-            cb(null, list)
-        }).catch(ex=>{
-            cb(ex)
-        });
+    getMempoolTxList(){
+        return client.command('getrawmempool')
     }
 }
 
