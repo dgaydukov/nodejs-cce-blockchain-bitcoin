@@ -140,7 +140,7 @@ const check = async(node, kc)=>{
             for(let k = 0; k < vinLen; k++){
                 const input = tx.vin[k]
                 if(input.txid){
-                    const inTx = await node.getTransaction(input.txid)
+                    const inTx = await node.getTxById(input.txid)
                     const inputAddressItem = inTx.vout[tx.vin[i].vout]
                     const addresses = inputAddressItem.scriptPubKey.addresses;
                     if(addresses){

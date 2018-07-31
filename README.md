@@ -130,7 +130,23 @@ bin/kafka-console-producer.sh --broker-list localhost:9092 --topic bitcoinProxyR
 To check out Bitcoin Proxy you can run the bitcoin node in testmode.
 To get test bitcoins you can use [this](https://testnet.manu.backend.hamburg/faucet) free faucet.
 You can check out transactions on [this](https://live.blockcypher.com/btc-testnet/tx/7eabc95193683097315a3716e8c08131a38e8717e63ff0845450d98063862670) address
+To run testnode you have to create config file in `~/.bitcoin/bitcoin.conf`
+```
+pid=bitcoind.pid
+gen=0
+rpcuser=admin
+rpcpassword=admin
+rpcport=8332
+daemon=1
+testnet=1
+txindex=1
+zmqpubhashblock=tcp://127.0.0.1:28321
+zmqpubhashtx=tcp://127.0.0.1:28321
+```
+After this just run `bitcoind` and the server will start as a deamon. To check if server is running just type `ps aux|grep bitcoind`    
+To check disk usage use this command `du -sh ~/.bitcoin/testnet3/*`
 
+Shell Commands to talk with Bitcoin Node
 ```shell
 # get latest block number (useful if you want to check blockchain sync status)
 bitcoin-cli getblockcount
