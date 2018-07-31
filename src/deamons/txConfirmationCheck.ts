@@ -4,98 +4,75 @@
  * Here we also update blockNumber for tx that was created by out bitcoin node
  */
 require('module-alias/register')
-
 const debug = require("debug")("txheck")
 import {KafkaConnector} from "@kafka/kafkaConnector"
 import {Transaction} from "@db/models/transaction"
 import {BitcoinNode} from "@blockchain/bitcoinNode"
-import {default as config} from "@root/config.json"
 import {buildMessage} from "@deamons/helpers"
 
-const RUN_TIME = 10
-const WAIT_ON_SUCCESS = 5
 const METHOD_NEW_CONFIRMATION = "newConfirmation"
 const METHOD_TX_WENT_INTO_BLOCK = "txWentIntoBlock"
 const MAX_CONFIRMATION_NUMBER = process.env.MAX_CONFIRMATION_NUMBER
 
 
-const node = new BitcoinNode()
-const kc = new KafkaConnector()
 
-
-let allowRun = true
-
-
-setInterval(()=>{
-    if(allowRun){
-        allowRun = false
-        const finishCb = () => {
-            allowRun = true
+const run = () => {
+    const intervalTime = Number(process.env.RUN_INTERVAL) * 1000
+    const node = new BitcoinNode()
+    const kc = new KafkaConnector()
+    let allowRun = true
+    const inner = ()=>{
+        if(allowRun) {
+            debug("start")
+            allowRun = false
+            check(node, kc)
+                .then(() => {
+                    allowRun = true
+                    debug(`-------------finish-------------`)
+                })
+                .catch((ex) => {
+                    allowRun = true
+                    debug(`Error: ${ex}`)
+                })
         }
-        check(finishCb)
     }
-}, RUN_TIME * 1000)
-
-
-
-
-
-const check = (finishCb) => {
-    const finish = () => {
-        setTimeout(()=>{
-            finishCb()
-        }, WAIT_ON_SUCCESS * 1000)
-    }
-    Transaction.find({confirmationNumber: {$lt: MAX_CONFIRMATION_NUMBER}}, (err, txList)=>{
-        if(txList){
-            const len = txList.length
-            debug(`number of tx to watch: ${len}`)
-            if(len == 0){
-                finish()
-            }
-            txList.map((txItem, i)=>{
-                setTimeout(()=>{
-                    node.getTransaction(txItem.txId, (err, tx)=>{
-                        if(i == len - 1){
-                            finish()
-                        }
-                        if(err || null == tx){
-                            return
-                        }
-                        //update blocknumber if null
-                        if(!txItem.blockNumber){
-                            node.getBlockByHash(tx.blockhash, (err, block)=>{
-                                if(err || null == block){
-                                    return
-                                }
-                                txItem.blockNumber = block.height
-                                txItem.save((err, data)=>{
-                                    kc.send(buildMessage(METHOD_TX_WENT_INTO_BLOCK, {
-                                            txId: data.txId,
-                                            blockNumber: data.blockNumber,
-                                        })
-                                    );
-                                })
-                            })
-                        }
-                        const confirmationNumber = tx.confirmations
-                        if(confirmationNumber > 0 && confirmationNumber != txItem.confirmationNumber){
-                            debug(`txId: ${txItem.txId}, confirmationNumber: ${confirmationNumber}`)
-                            txItem.confirmationNumber = confirmationNumber
-                            txItem.save((err, data)=>{
-                                kc.send(buildMessage(METHOD_NEW_CONFIRMATION, {
-                                        txId: data.txId,
-                                        confirmationNumber: data.confirmationNumber,
-                                    })
-                                );
-                            })
-                        }
-                    })
-                }, i * 100)
-            })
-        }
-        else{
-            finish()
-        }
-    })
+    inner();
+    setInterval(inner, intervalTime)
 }
+
+
+
+
+
+const check = async(node, kc) => {
+    const dbTxList = await Transaction.find({confirmationNumber: {$lt: MAX_CONFIRMATION_NUMBER}})
+    const len = dbTxList.length
+    debug(`number of tx to watch: ${len}`)
+    for(let i = 0; i < len; i++){
+        const dbTx = dbTxList[i]
+        const tx = await node.getTransaction(dbTx.txId)
+        const confirmationNumber = tx.confirmations
+        if(0 == dbTx.blockNumber){
+            const block = await node.getBlockByHash(tx.blockhash)
+            dbTx.blockNumber = block.height
+            const data = await dbTx.save()
+            kc.send(buildMessage(METHOD_TX_WENT_INTO_BLOCK, {
+                    txId: data.txId,
+                    blockNumber: data.blockNumber,
+                })
+            )
+        }
+        else if(confirmationNumber > dbTx.confirmationNumber){
+            debug(`txId: ${dbTx.txId}, confirmationNumber: ${confirmationNumber}`)
+            dbTx.confirmationNumber = confirmationNumber
+            const data = await dbTx.save()
+            kc.send(buildMessage(METHOD_NEW_CONFIRMATION, {
+                    txId: data.txId,
+                    confirmationNumber: data.confirmationNumber,
+                })
+            )
+        }
+    }
+}
+
+run()
