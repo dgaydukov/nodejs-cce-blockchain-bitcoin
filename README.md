@@ -132,6 +132,9 @@ To get test bitcoins you can use [this](https://testnet.manu.backend.hamburg/fau
 You can check out transactions on [this](https://live.blockcypher.com/btc-testnet/tx/7eabc95193683097315a3716e8c08131a38e8717e63ff0845450d98063862670) address
 
 ```shell
+# get latest block number (useful if you want to check blockchain sync status)
+bitcoin-cli getblockcount
+
 # create new address
 bitcoin-cli getnewaddress
 
