@@ -4,7 +4,6 @@
  * that means somebody (but not we) made transaction and move money to daemon.
  */
 require('module-alias/register')
-
 const debug = require("debug")("mptheck")
 import {KafkaConnector} from "@kafka/kafkaConnector"
 import {Address} from "@db/models/address"
@@ -12,7 +11,6 @@ import {MempoolTx} from "@db/models/mempoolTx"
 import {Transaction} from "@db/models/transaction"
 import {BitcoinNode} from "@blockchain/bitcoinNode"
 import {buildMessage} from "@deamons/helpers"
-
 
 const METHOD_NEW_MEMPOOL_TX = "newMempoolTx"
 
@@ -47,7 +45,6 @@ const check = async(node, kc)=>{
      *  For test purpose you can clear latestblock & transaction
      *  LatestBlock.collection.drop()
      */
-
     try{
         const dbAddressList = await Address.find({})
         const dbMempollTxList = await MempoolTx.find({})
@@ -107,7 +104,6 @@ const check = async(node, kc)=>{
     catch(ex){
         debug(`Error: ${ex}`)
     }
-
 }
 
 

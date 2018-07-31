@@ -15,6 +15,29 @@ export class BitcoinNode{
         return client.command("getnewaddress")
     }
 
+    getTxById(txId){
+        return client.command('getrawtransaction', txId, 1)
+    }
+
+    getBlockByHash(hash){
+        return client.command('getblock', hash)
+    }
+
+    async getBlockByNumber(number){
+        const hash = await client.command('getblockhash', number)
+        const block = await client.command('getblock', hash)
+        return block
+    }
+
+    getMempoolTxList(){
+        return client.command('getrawmempool')
+    }
+
+    sendTransaction(to, amount){
+        return client.command('sendtoaddress', to, amount)
+    }
+
+
     getBalance(address){
         return client.getBalance(address, 0)
     }
@@ -37,30 +60,10 @@ export class BitcoinNode{
         return client.command('getaddressesbyaccount', '')
     }
 
-    sendTransaction(to, amount){
-        return client.command('sendtoaddress', to, amount)
-    }
+
 
     getPrivateKey(address){
         return client.command('dumpprivkey', address)
-    }
-
-    getTxById(txId){
-        return client.command('getrawtransaction', txId, 1)
-    }
-
-    getBlockByHash(hash){
-        return client.command('getblock', hash)
-    }
-
-    async getBlockByNumber(number){
-        const hash = await client.command('getblockhash', number)
-        const block = await client.command('getblock', hash)
-        return block
-    }
-
-    getMempoolTxList(){
-        return client.command('getrawmempool')
     }
 }
 

@@ -43,7 +43,6 @@ const run = () => {
 
 
 
-
 const check = async(node, kc) => {
     try{
         const dbTxList = await Transaction.find({confirmationNumber: {$lt: MAX_CONFIRMATION_NUMBER}})
@@ -79,5 +78,7 @@ const check = async(node, kc) => {
         debug(`Error: ${ex}`)
     }
 }
+
+
 
 run()

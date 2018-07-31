@@ -4,7 +4,6 @@
  * that means somebody (but not we) made transaction and move money to daemon.
  */
 require('module-alias/register')
-
 const debug = require("debug")("bcheck")
 import {KafkaConnector} from "@kafka/kafkaConnector"
 import {Address} from "@db/models/address"
