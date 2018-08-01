@@ -13,6 +13,7 @@ export var TransactionSchema: mongoose.Schema = new mongoose.Schema({
     addressFrom: [String],
     addressTo: String,
     amount: Number,
+    fee: Number,
     datetime: { type: Date, default: Date.now},
     blockNumber: { type: Number, default: 0},
     confirmationNumber: { type: Number, default: 0},

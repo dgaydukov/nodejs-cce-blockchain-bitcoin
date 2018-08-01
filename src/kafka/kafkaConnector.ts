@@ -24,6 +24,7 @@ interface iMessage{
     partition: number,
     key?: string,
     timestamp: Date,
+    error?: {},
 }
 
 export class KafkaConnector {
@@ -42,7 +43,7 @@ export class KafkaConnector {
                 ];
                 producer.send(payloads, (err, data) => {
                     if (err) {
-                        return debug(err.toString())
+                        return reject(err)
                     }
                     const messageId = data[config.KAFKA_TOPIC_SEND][0]
                     debug(`sent to kafka, messageId: ${messageId}, initial message: `, message)
@@ -129,9 +130,9 @@ export class KafkaConnector {
             }
             catch(ex){
                 this.send({
-                    originalMessage: message.value,
+                    initialMessage: message.value,
                     error: {
-                        message: ex.toString(),
+                        message: ex.toString()
                     }
                 })
             }

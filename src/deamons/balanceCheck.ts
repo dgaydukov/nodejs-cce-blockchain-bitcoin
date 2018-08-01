@@ -57,7 +57,6 @@ const check = async(node, kc)=>{
             lastBlock.blockNumber = Number(config.BITCOIN_SYNC_START_BLOCK)
         }
         debug(`----------start block #${lastBlock.blockNumber}----------`)
-        lastBlock.blockNumber = Number(lastBlock.blockNumber) + 1
         const dbAddressList = await Address.find()
         debug(`number of address to watch: ${dbAddressList.length}`)
         const addressList = {}
@@ -67,18 +66,20 @@ const check = async(node, kc)=>{
             }
         })
         const block = await node.getBlockByNumber(lastBlock.blockNumber)
-        const len = block.tx.length
-        debug(`number of tx: ${len}`)
-        for(let i = 0; i < len; i++){
+        const txLen = block.tx.length
+        debug(`number of tx: ${txLen}`)
+        for(let i = 0; i < txLen; i++){
             const txId = block.tx[i]
             const tx = await node.getTxById(txId)
             const voutLen = tx.vout.length
+            let fee = 0
             for(let j = 0; j < voutLen; j++){
                 const output = tx.vout[j]
+                const amount = Number(output.value)
+                fee += amount
                 const addresses = output.scriptPubKey.addresses;
                 if(addresses){
                     const outputAddress = addresses[0].toLowerCase()
-                    const amount = Number(output.value)
                     const outputAddressItem = addressList[outputAddress]
                     if(outputAddressItem){
                         debug(`address found: ${outputAddress}, ${amount}`)
@@ -118,10 +119,23 @@ const check = async(node, kc)=>{
              * pure bitcoin feature, we need to go one level deep to to get address from
              */
             const vinLen = tx.vin.length
-            const vinCb = async(txId, list) => {
+            const vinAddressList = []
+            for(let k = 0; k < vinLen; k++){
+                const input = tx.vin[k]
+                if(input.txid){
+                    const inTx = await node.getTxById(input.txid)
+                    const inputAddressItem = inTx.vout[input.vout]
+                    fee -= Number(inputAddressItem.value)
+                    const addresses = inputAddressItem.scriptPubKey.addresses;
+                    if(addresses){
+                        vinAddressList.push(addresses[0])
+                    }
+                }
+            }
+            if(vinAddressList.length > 0){
                 const txItem = await Transaction.findOne({txId: txId, addressFrom: []})
                 if(txItem){
-                    txItem.addressFrom = list
+                    txItem.addressFrom = vinAddressList
                     const savedTx = await txItem.save()
                     debug(`tx updated`, savedTx)
                     kc.send(
@@ -130,28 +144,16 @@ const check = async(node, kc)=>{
                             addressFrom: savedTx.addressFrom,
                             addressTo: savedTx.addressTo,
                             amount: savedTx.amount,
+                            fee: fee,
                             confirmationNumber: savedTx.confirmationNumber,
                             blockNumber: savedTx.blockNumber,
                         })
                     )
                 }
             }
-            const vinAddressList = []
-            for(let k = 0; k < vinLen; k++){
-                const input = tx.vin[k]
-                if(input.txid){
-                    const inTx = await node.getTxById(input.txid)
-                    const inputAddressItem = inTx.vout[tx.vin[i].vout]
-                    const addresses = inputAddressItem.scriptPubKey.addresses;
-                    if(addresses){
-                        vinAddressList.push(addresses[0])
-                    }
-                    if(i == vinLen - 1){
-                        vinCb(txId, vinAddressList)
-                    }
-                }
-            }
         }
+        lastBlock.blockNumber = Number(lastBlock.blockNumber) + 1
+        lastBlock.save()
     }
     catch(ex){
         debug(`Error: ${ex}`)
