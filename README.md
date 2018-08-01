@@ -145,6 +145,7 @@ zmqpubhashtx=tcp://127.0.0.1:28321
 ```
 After this just run `bitcoind` and the server will start as a deamon. To check if server is running just type `ps aux|grep bitcoind`    
 To check disk usage use this command `du -sh ~/.bitcoin/testnet3/*`
+On the day of writing this readme, at 01.08.2018 the blockchain size is 17GB
 
 Shell Commands to talk with Bitcoin Node
 ```shell

@@ -4,7 +4,7 @@ export function buildMessage(methodName, data, error = null){
         data: data,
         metadata: {
             "guid": "",
-            "appId": process.env.RECEIVING_APP_ID,
+            "appId": "",
             "methodName": methodName,
             "timestamp": + new Date(),
             "context": ""
