@@ -11,11 +11,7 @@ import {AddressInfo} from "@logic/addressInfo"
 import {TransactionInfo} from "@logic/transactionInfo"
 import {KafkaMessage} from "@db/models/kafkaMessage"
 import {default as config} from "@root/config.json"
-
-const METHOD_GET_ADDRESS = "getAddress"
-const METHOD_SEND_TRANSACTION = "sendTransaction"
-const METHOD_GET_ADDRESS_INFO = "getAddressInfo"
-const METHOD_GET_TRANSACTION_INFO = "getTransactionInfo"
+import {METHOD_GET_ADDRESS, METHOD_SEND_TRANSACTION, METHOD_GET_ADDRESS_INFO, METHOD_GET_TX_INFO} from "@root/constList"
 
 interface iMessage{
     topic: string,
@@ -112,7 +108,7 @@ export class KafkaConnector {
                         this.send(outMsg)
                         break;
 
-                    case METHOD_GET_TRANSACTION_INFO:
+                    case METHOD_GET_TX_INFO:
                         const txInfo = new TransactionInfo(inMsg.data.txId)
                         const txInfoItem = await txInfo.get()
                         outMsg.data = Object.assign({}, inMsg.data, txInfoItem)

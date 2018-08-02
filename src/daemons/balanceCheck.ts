@@ -12,9 +12,7 @@ import {LatestBlock} from "@db/models/latestBlock"
 import {BitcoinNode} from "@blockchain/bitcoinNode"
 import {default as config} from "@root/config.json"
 import {buildMessage} from "@daemons/helpers"
-
-const METHOD_NEW_BALANCE = "newBalance"
-const METHOD_NEW_TRANSACTION = "newTx"
+import {METHOD_NEW_BALANCE, METHOD_NEW_TRANSACTION} from "@root/constList"
 
 
 

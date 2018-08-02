@@ -9,9 +9,8 @@ import {KafkaConnector} from "@kafka/kafkaConnector"
 import {Transaction} from "@db/models/transaction"
 import {BitcoinNode} from "@blockchain/bitcoinNode"
 import {buildMessage} from "@daemons/helpers"
+import {METHOD_NEW_TX_CONFIRMATION, METHOD_TX_WENT_INTO_BLOCK} from "@root/constList"
 
-const METHOD_NEW_CONFIRMATION = "newConfirmation"
-const METHOD_TX_WENT_INTO_BLOCK = "txWentIntoBlock"
 const MAX_CONFIRMATION_NUMBER = process.env.MAX_CONFIRMATION_NUMBER
 
 const run = () => {
@@ -70,7 +69,7 @@ const check = async(node, kc) => {
                 dbTx.confirmationNumber = confirmationNumber
                 const data = await dbTx.save()
                 kc.send(
-                    buildMessage(METHOD_NEW_CONFIRMATION, {
+                    buildMessage(METHOD_NEW_TX_CONFIRMATION, {
                         txId: data.txId,
                         blockNumber: data.blockNumber,
                         confirmationNumber: data.confirmationNumber,

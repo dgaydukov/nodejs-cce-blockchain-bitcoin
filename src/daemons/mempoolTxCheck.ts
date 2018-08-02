@@ -11,10 +11,9 @@ import {MempoolTx} from "@db/models/mempoolTx"
 import {Transaction} from "@db/models/transaction"
 import {BitcoinNode} from "@blockchain/bitcoinNode"
 import {buildMessage} from "@daemons/helpers"
+import {METHOD_NEW_MEMPOOL_TX} from "@root/constList"
 
-const METHOD_NEW_MEMPOOL_TX = "newMempoolTx"
-
-
+const MAX_CONFIRMATION_NUMBER = process.env.MAX_CONFIRMATION_NUMBER
 
 const run = () => {
     const intervalTime = Number(process.env.RUN_INTERVAL) * 1000
