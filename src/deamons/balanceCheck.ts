@@ -40,12 +40,13 @@ const run = () => {
         }
     }
     inner();
-    setInterval(inner, intervalTime)
+    //setInterval(inner, intervalTime)
 }
 
 const convert = (amount)=>{
     return parseFloat(parseFloat(amount.toString()).toFixed(8))
 }
+
 
 
 const check = async(node, kc)=>{
@@ -75,16 +76,15 @@ const check = async(node, kc)=>{
         const checkTx = async(tx, txType)=>{
             const txId = tx.txid
             const voutLen = tx.vout.length
-            let fee = 0
             for(let j = 0; j < voutLen; j++){
                 const output = tx.vout[j]
                 const amount = Number(output.value)
-                fee += amount
                 const addresses = output.scriptPubKey.addresses;
                 if(addresses){
                     const outputAddress = addresses[0].toLowerCase()
-                    const outputAddressItem = addressList[outputAddress]
-                    if(outputAddressItem){
+                    const dbAddressItem = addressList[outputAddress]
+                    if(dbAddressItem){
+                        const block = await node.getBlockByHash(tx.blockhash)
                         debug(`address found: ${outputAddress}, ${amount}`)
                         let dbTx = await Transaction.findOne({txId: txId})
                         //if transaction doesn't exist create and recalculate balance
@@ -93,22 +93,19 @@ const check = async(node, kc)=>{
                             dbTx.txId = txId
                         }
                         dbTx.addressFrom = []
-                        dbTx.addressTo = outputAddressItem.address
+                        dbTx.addressTo = dbAddressItem.address
                         dbTx.amount = amount
                         dbTx.confirmationNumber = tx.confirmations
-                        dbTx.blockNumber = lastBlock.blockNumber
+                        dbTx.blockNumber = block.height
                         dbTx.type = txType
                         const data = await dbTx.save()
                         debug(`tx saved ${txId}, address: ${outputAddress}`)
-                        kc.send(
-                            buildMessage(METHOD_NEW_BALANCE, {
-                                address: outputAddressItem.address,
-                                amount: amount,
-                                txId: data.txId,
-                            })
-                        );
                         //update address table for total address balance
-                        const dbTxList = await Transaction.find({addressTo: outputAddress})
+                        const dbTxList = await Transaction.find({$or: [
+                                {addressFrom: {$regex: outputAddress, $options: 'i'}},
+                                {addressTo: {$regex: outputAddress, $options: 'i'}}
+                            ]
+                        })
                         let balance = 0
                         dbTxList.map(txItem=>{
                             if (txItem.type == TYPE.INPUT) {
@@ -119,9 +116,19 @@ const check = async(node, kc)=>{
                                 balance -= Number(txItem.fee)
                             }
                         })
-                        outputAddressItem.balance = balance.toFixed(8)
-                        outputAddressItem.save()
+                        kc.send(
+                            buildMessage(METHOD_NEW_BALANCE, {
+                                address: dbAddressItem.address,
+                                txId: data.txId,
+                                lastTxAmount: amount,
+                                balance: balance,
+                            })
+                        );
+                        dbAddressItem.balance = balance.toFixed(8)
+                        dbAddressItem.save()
 
+                        //to calculate distract the sum of all input from sum of all output
+                        let fee = 0
                         /**
                          * pure Bitcoin feature, we need to go one level deep to to get addressFrom from vin
                          * cause vin has only txId
@@ -133,13 +140,17 @@ const check = async(node, kc)=>{
                             if(input.txid){
                                 const inTx = await node.getTxById(input.txid)
                                 const inputAddressItem = inTx.vout[input.vout]
-                                fee = Number(inputAddressItem.value) - fee
+                                console.log(input.txid, inputAddressItem.value, fee)
+                                fee += Number(inputAddressItem.value)
                                 const addresses = inputAddressItem.scriptPubKey.addresses;
                                 if(addresses){
                                     vinAddressList.push(addresses[0])
                                 }
                             }
                         }
+                        tx.vout.map(_tx=>{
+                            fee -= Number(_tx.value)
+                        })
                         if(vinAddressList.length > 0){
                             const txItem = await Transaction.findOne({txId: txId, addressFrom: []})
                             if(txItem){

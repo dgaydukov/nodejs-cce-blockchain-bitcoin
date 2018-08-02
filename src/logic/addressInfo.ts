@@ -19,7 +19,11 @@ export class AddressInfo{
             balance: addressItem.balance,
             tx: []
         }
-        const txList = await Transaction.find({addressTo: this.address.toLowerCase()})
+        const txList = await Transaction.find({$or: [
+                {addressFrom: {$regex: this.address, $options: 'i'}},
+                {addressTo: {$regex: this.address, $options: 'i'}}
+            ]
+        })
         txList.map(tx=> {
             data.tx.push({
                 txId: tx.txId,
