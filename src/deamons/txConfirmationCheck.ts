@@ -50,15 +50,17 @@ const check = async(node, kc) => {
         debug(`number of tx to watch: ${len}`)
         for(let i = 0; i < len; i++){
             const dbTx = dbTxList[i]
-            const tx = await node.getTransaction(dbTx.txId)
+            const tx = await node.getTxById(dbTx.txId)
             const confirmationNumber = tx.confirmations
             if(0 == dbTx.blockNumber){
                 const block = await node.getBlockByHash(tx.blockhash)
                 dbTx.blockNumber = block.height
                 const data = await dbTx.save()
-                kc.send(buildMessage(METHOD_TX_WENT_INTO_BLOCK, {
+                kc.send(
+                    buildMessage(METHOD_TX_WENT_INTO_BLOCK, {
                         txId: data.txId,
                         blockNumber: data.blockNumber,
+                        confirmationNumber: data.confirmationNumber,
                     })
                 )
             }
@@ -66,8 +68,10 @@ const check = async(node, kc) => {
                 debug(`txId: ${dbTx.txId}, confirmationNumber: ${confirmationNumber}`)
                 dbTx.confirmationNumber = confirmationNumber
                 const data = await dbTx.save()
-                kc.send(buildMessage(METHOD_NEW_CONFIRMATION, {
+                kc.send(
+                    buildMessage(METHOD_NEW_CONFIRMATION, {
                         txId: data.txId,
+                        blockNumber: data.blockNumber,
                         confirmationNumber: data.confirmationNumber,
                     })
                 )

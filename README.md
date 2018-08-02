@@ -167,8 +167,11 @@ bitcoin-cli listreceivedbyaddress
 # list all bitcoin node addresses
 bitcoin-cli listreceivedbyaddress 0 true 
 
-# send amount to address
+# send amount to address. In return you should get transactionID
 bitcoin-cli sendtoaddress 2NFnF72aUKiA2QUkHS3p4WaaqfZa76q3njw 0.01
+
+# to get transaction info run following
+bitcoin-cli getrawtransaction eb1824ea7f6a81f74e3e55b2757d97d36c168e77d989e163da694174c9a48f7b 1
 
 # get all new tx from mempool (with 0 confirmation)
 bitcoin-cli getrawmempool

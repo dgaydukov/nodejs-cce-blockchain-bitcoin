@@ -5,6 +5,7 @@
   "main": "app/server.js",
   "scripts": {
     "start": "npm-run-all clean build --parallel watch pm2",
+    "deamons": "npm run bcheck && npm run txcheck && npm run mptcheck",
     "clean": "mkdir -p dist && rm -rf dist/*",
     "pm2": "pm2 startOrReload dev.ecosystem.json",
     "log": "pm2 logs --timestamp",

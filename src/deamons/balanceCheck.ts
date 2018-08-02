@@ -43,6 +43,10 @@ const run = () => {
     setInterval(inner, intervalTime)
 }
 
+const convert = (amount)=>{
+    return parseFloat(parseFloat(amount.toString()).toFixed(8))
+}
+
 
 const check = async(node, kc)=>{
     /**
@@ -68,9 +72,7 @@ const check = async(node, kc)=>{
         const block = await node.getBlockByNumber(lastBlock.blockNumber)
         const txLen = block.tx.length
         debug(`number of tx: ${txLen}`)
-        for(let i = 0; i < txLen; i++){
-            const txId = block.tx[i]
-            const tx = await node.getTxById(txId)
+        const checkByTxId = async(txId, tx)=>{
             const voutLen = tx.vout.length
             let fee = 0
             for(let j = 0; j < voutLen; j++){
@@ -113,44 +115,59 @@ const check = async(node, kc)=>{
                         outputAddressItem.balance = balance.toFixed(8)
                         outputAddressItem.save()
                     }
-                }
-            }
-            /**
-             * pure bitcoin feature, we need to go one level deep to to get address from
-             */
-            const vinLen = tx.vin.length
-            const vinAddressList = []
-            for(let k = 0; k < vinLen; k++){
-                const input = tx.vin[k]
-                if(input.txid){
-                    const inTx = await node.getTxById(input.txid)
-                    const inputAddressItem = inTx.vout[input.vout]
-                    fee -= Number(inputAddressItem.value)
-                    const addresses = inputAddressItem.scriptPubKey.addresses;
-                    if(addresses){
-                        vinAddressList.push(addresses[0])
+
+                    /**
+                     * pure Bitcoin feature, we need to go one level deep to to get addressFrom from vin
+                     * cause vin has only txId
+                     */
+                    const vinLen = tx.vin.length
+                    const vinAddressList = []
+                    for(let k = 0; k < vinLen; k++){
+                        const input = tx.vin[k]
+                        if(input.txid){
+                            const inTx = await node.getTxById(input.txid)
+                            const inputAddressItem = inTx.vout[input.vout]
+                            fee = Number(inputAddressItem.value) - fee
+                            const addresses = inputAddressItem.scriptPubKey.addresses;
+                            if(addresses){
+                                vinAddressList.push(addresses[0])
+                            }
+                        }
+                    }
+                    if(vinAddressList.length > 0){
+                        const txItem = await Transaction.findOne({txId: txId, addressFrom: []})
+                        if(txItem){
+                            txItem.addressFrom = vinAddressList
+                            const savedTx = await txItem.save()
+                            debug(`tx updated`, savedTx)
+                            kc.send(
+                                buildMessage(METHOD_NEW_TRANSACTION, {
+                                    txId: txId,
+                                    addressFrom: savedTx.addressFrom,
+                                    addressTo: savedTx.addressTo,
+                                    amount: savedTx.amount,
+                                    fee: convert(fee),
+                                    confirmationNumber: savedTx.confirmationNumber,
+                                    blockNumber: savedTx.blockNumber,
+                                })
+                            )
+                        }
                     }
                 }
             }
-            if(vinAddressList.length > 0){
-                const txItem = await Transaction.findOne({txId: txId, addressFrom: []})
-                if(txItem){
-                    txItem.addressFrom = vinAddressList
-                    const savedTx = await txItem.save()
-                    debug(`tx updated`, savedTx)
-                    kc.send(
-                        buildMessage(METHOD_NEW_TRANSACTION, {
-                            txId: txId,
-                            addressFrom: savedTx.addressFrom,
-                            addressTo: savedTx.addressTo,
-                            amount: savedTx.amount,
-                            fee: fee,
-                            confirmationNumber: savedTx.confirmationNumber,
-                            blockNumber: savedTx.blockNumber,
-                        })
-                    )
-                }
+        }
+        for(let i = 0; i < txLen; i++){
+            const txId = block.tx[i]
+            const tx = await node.getTxById(txId)
+            await checkByTxId(txId, tx)
+
+            const vinLen = tx.vin.length
+            for(let j = 0; j < vinLen; j++){
+                const inTxId = tx.vin[j]
+                const inTx = await node.getTxById(tx.vin[j])
+                await checkByTxId(inTxId, inTx)
             }
+
         }
         lastBlock.blockNumber = Number(lastBlock.blockNumber) + 1
         lastBlock.save()
