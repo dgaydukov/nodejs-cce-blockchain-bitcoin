@@ -72,7 +72,8 @@ const check = async(node, kc)=>{
         const block = await node.getBlockByNumber(lastBlock.blockNumber)
         const txLen = block.tx.length
         debug(`number of tx: ${txLen}`)
-        const checkByTxId = async(txId, tx)=>{
+        const checkByTxId = async(tx)=>{
+            const txId = tx.hash
             const voutLen = tx.vout.length
             let fee = 0
             for(let j = 0; j < voutLen; j++){
@@ -109,8 +110,14 @@ const check = async(node, kc)=>{
                         //update address table for total address balance
                         const dbTxList = await Transaction.find({addressTo: outputAddress})
                         let balance = 0
-                        dbTxList.map(item=>{
-                            balance += Number(item.amount)
+                        dbTxList.map(txItem=>{
+                            if (txItem.type == TYPE.INPUT) {
+                                balance += Number(txItem.amount)
+                            }
+                            else {
+                                balance -= Number(txItem.amount)
+                                balance -= Number(txItem.fee)
+                            }
                         })
                         outputAddressItem.balance = balance.toFixed(8)
                         outputAddressItem.save()
@@ -157,15 +164,16 @@ const check = async(node, kc)=>{
             }
         }
         for(let i = 0; i < txLen; i++){
-            const txId = block.tx[i]
-            const tx = await node.getTxById(txId)
-            await checkByTxId(txId, tx)
-
+            const tx = await node.getTxById(block.tx[i])
+            await checkByTxId(tx)
+            //check all output tx from out addresses
             const vinLen = tx.vin.length
             for(let j = 0; j < vinLen; j++){
-                const inTxId = tx.vin[j]
-                const inTx = await node.getTxById(tx.vin[j])
-                await checkByTxId(inTxId, inTx)
+                const input = tx.vin[j]
+                if(input.txid){
+                    const inTx = await node.getTxById(input.txid)
+                    await checkByTxId(inTx)
+                }
             }
 
         }
