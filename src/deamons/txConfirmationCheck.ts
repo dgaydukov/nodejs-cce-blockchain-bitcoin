@@ -51,6 +51,9 @@ const check = async(node, kc) => {
         for(let i = 0; i < len; i++){
             const dbTx = dbTxList[i]
             const tx = await node.getTxById(dbTx.txId)
+            if(!tx.blockhash){
+                return
+            }
             const confirmationNumber = tx.confirmations
             if(0 == dbTx.blockNumber){
                 const block = await node.getBlockByHash(tx.blockhash)

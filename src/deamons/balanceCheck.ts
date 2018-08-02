@@ -60,7 +60,7 @@ const check = async(node, kc)=>{
             lastBlock = new LatestBlock()
             lastBlock.blockNumber = Number(config.BITCOIN_SYNC_START_BLOCK)
         }
-        debug(`----------start block #${lastBlock.blockNumber}----------`)
+        debug(`block #${lastBlock.blockNumber}`)
         const dbAddressList = await Address.find()
         debug(`number of address to watch: ${dbAddressList.length}`)
         const addressList = {}
@@ -72,8 +72,8 @@ const check = async(node, kc)=>{
         const block = await node.getBlockByNumber(lastBlock.blockNumber)
         const txLen = block.tx.length
         debug(`number of tx: ${txLen}`)
-        const checkByTxId = async(tx)=>{
-            const txId = tx.hash
+        const checkTx = async(tx, txType)=>{
+            const txId = tx.txid
             const voutLen = tx.vout.length
             let fee = 0
             for(let j = 0; j < voutLen; j++){
@@ -97,7 +97,7 @@ const check = async(node, kc)=>{
                         dbTx.amount = amount
                         dbTx.confirmationNumber = tx.confirmations
                         dbTx.blockNumber = lastBlock.blockNumber
-                        dbTx.type = TYPE.INPUT
+                        dbTx.type = txType
                         const data = await dbTx.save()
                         debug(`tx saved ${txId}, address: ${outputAddress}`)
                         kc.send(
@@ -121,43 +121,43 @@ const check = async(node, kc)=>{
                         })
                         outputAddressItem.balance = balance.toFixed(8)
                         outputAddressItem.save()
-                    }
 
-                    /**
-                     * pure Bitcoin feature, we need to go one level deep to to get addressFrom from vin
-                     * cause vin has only txId
-                     */
-                    const vinLen = tx.vin.length
-                    const vinAddressList = []
-                    for(let k = 0; k < vinLen; k++){
-                        const input = tx.vin[k]
-                        if(input.txid){
-                            const inTx = await node.getTxById(input.txid)
-                            const inputAddressItem = inTx.vout[input.vout]
-                            fee = Number(inputAddressItem.value) - fee
-                            const addresses = inputAddressItem.scriptPubKey.addresses;
-                            if(addresses){
-                                vinAddressList.push(addresses[0])
+                        /**
+                         * pure Bitcoin feature, we need to go one level deep to to get addressFrom from vin
+                         * cause vin has only txId
+                         */
+                        const vinLen = tx.vin.length
+                        const vinAddressList = []
+                        for(let k = 0; k < vinLen; k++){
+                            const input = tx.vin[k]
+                            if(input.txid){
+                                const inTx = await node.getTxById(input.txid)
+                                const inputAddressItem = inTx.vout[input.vout]
+                                fee = Number(inputAddressItem.value) - fee
+                                const addresses = inputAddressItem.scriptPubKey.addresses;
+                                if(addresses){
+                                    vinAddressList.push(addresses[0])
+                                }
                             }
                         }
-                    }
-                    if(vinAddressList.length > 0){
-                        const txItem = await Transaction.findOne({txId: txId, addressFrom: []})
-                        if(txItem){
-                            txItem.addressFrom = vinAddressList
-                            const savedTx = await txItem.save()
-                            debug(`tx updated`, savedTx)
-                            kc.send(
-                                buildMessage(METHOD_NEW_TRANSACTION, {
-                                    txId: txId,
-                                    addressFrom: savedTx.addressFrom,
-                                    addressTo: savedTx.addressTo,
-                                    amount: savedTx.amount,
-                                    fee: convert(fee),
-                                    confirmationNumber: savedTx.confirmationNumber,
-                                    blockNumber: savedTx.blockNumber,
-                                })
-                            )
+                        if(vinAddressList.length > 0){
+                            const txItem = await Transaction.findOne({txId: txId, addressFrom: []})
+                            if(txItem){
+                                txItem.addressFrom = vinAddressList
+                                const savedTx = await txItem.save()
+                                kc.send(
+                                    buildMessage(METHOD_NEW_TRANSACTION, {
+                                        txId: txId,
+                                        addressFrom: savedTx.addressFrom,
+                                        addressTo: savedTx.addressTo,
+                                        amount: savedTx.amount,
+                                        fee: convert(fee),
+                                        confirmationNumber: savedTx.confirmationNumber,
+                                        blockNumber: savedTx.blockNumber,
+                                        type: savedTx.type
+                                    })
+                                )
+                            }
                         }
                     }
                 }
@@ -165,14 +165,14 @@ const check = async(node, kc)=>{
         }
         for(let i = 0; i < txLen; i++){
             const tx = await node.getTxById(block.tx[i])
-            await checkByTxId(tx)
+            await checkTx(tx, TYPE.INPUT)
             //check all output tx from out addresses
             const vinLen = tx.vin.length
             for(let j = 0; j < vinLen; j++){
                 const input = tx.vin[j]
                 if(input.txid){
                     const inTx = await node.getTxById(input.txid)
-                    await checkByTxId(inTx)
+                    await checkTx(inTx, TYPE.OUTPUT)
                 }
             }
 
