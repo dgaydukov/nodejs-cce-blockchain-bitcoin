@@ -13,7 +13,7 @@ kc.listen()
  * todo разобраться как работает zeroMq в биткоин-демоне
  *
  *
- * import {ZmqBalanceCheck} from "@deamons/zmqBalanceCheck"
+ * import {ZmqBalanceCheck} from "@daemons/zmqBalanceCheck"
  * const bc = new ZmqBalanceCheck()
  * bc.listen()
  *

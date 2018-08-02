@@ -8,13 +8,11 @@ const debug = require("debug")("txheck")
 import {KafkaConnector} from "@kafka/kafkaConnector"
 import {Transaction} from "@db/models/transaction"
 import {BitcoinNode} from "@blockchain/bitcoinNode"
-import {buildMessage} from "@deamons/helpers"
+import {buildMessage} from "@daemons/helpers"
 
 const METHOD_NEW_CONFIRMATION = "newConfirmation"
 const METHOD_TX_WENT_INTO_BLOCK = "txWentIntoBlock"
 const MAX_CONFIRMATION_NUMBER = process.env.MAX_CONFIRMATION_NUMBER
-
-
 
 const run = () => {
     const intervalTime = Number(process.env.RUN_INTERVAL) * 1000

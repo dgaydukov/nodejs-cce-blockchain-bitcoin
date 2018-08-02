@@ -1,6 +1,6 @@
 
 
-import {default as config} from "../config.json"
+import {default as config} from "@root/config.json"
 
 const zmq = require('zmq')
 const sub = zmq.socket('sub')
