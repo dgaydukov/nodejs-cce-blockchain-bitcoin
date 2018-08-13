@@ -1,8 +1,8 @@
 {
-  "name": "BitcoinCryptoConnector",
+  "name": "BitcoinNodeProxy",
   "version": "1.0.0",
-  "description": "bitcoin microservise",
-  "main": "app/server.js",
+  "description": "The proxy above bitcoin node(bitcoind)",
+  "main": "dist/index.js",
   "scripts": {
     "start": "npm-run-all clean build --parallel watch pm2",
     "deamons": "npm run bcheck && npm run txcheck && npm run mptcheck",
